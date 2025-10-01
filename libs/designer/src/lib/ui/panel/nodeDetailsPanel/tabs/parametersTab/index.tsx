@@ -1020,16 +1020,25 @@ export const getEditorAndOptions = (
 
   // Handle agent connector with supported deployments
   const isAgent = isAgentConnectorAndDeploymentId(operationInfo?.connectorId, parameter.parameterName);
-  if (equals(editor, 'combobox') && isAgent) {
+  if ((equals(editor, 'combobox') || equals(editor, 'dropdown')) && isAgent) {
     const options = deploymentsForCognitiveServiceAccount
       .filter((deployment) => {
         const modelName = (deployment.properties?.model?.name ?? '').toLowerCase();
         return constants.SUPPORTED_AGENT_MODELS.includes(modelName);
       })
-      .map((deployment) => ({
-        value: deployment.name,
-        displayName: `${deployment.name}${deployment.properties?.model?.name ? ` (${deployment.properties.model.name})` : ''}`,
-      }));
+      .map((deployment) => {
+        // Consumption: modelId, Standard: deployment.name
+        if (deployment.modelId) {
+          return {
+            value: deployment.modelId,
+            displayName: deployment.modelId,
+          };
+        }
+        return {
+          value: deployment.name,
+          displayName: `${deployment.name}${deployment.properties?.model?.name ? ` (${deployment.properties.model.name})` : ''}`,
+        };
+      });
 
     return {
       editor,
