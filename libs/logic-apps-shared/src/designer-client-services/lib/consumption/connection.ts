@@ -66,12 +66,16 @@ export class ConsumptionConnectionService extends BaseConnectionService {
     shouldTestConnection = true
   ): Promise<Connection> {
     if (this.isAgenticConsumption(connector)) {
+      const modelId = (connectionInfo as any)?.modelId;
       return {
         id: 'agentic-consumption-connection',
         name: 'Agentic Consumption Connection',
         properties: {
           api: { id: connector?.id ?? 'agentic-consumption' },
           displayName: 'Agentic Consumption Connection',
+          parameterValues: {
+            ...(modelId ? { modelId } : {}),
+          },
         },
       } as Connection;
     }

@@ -105,6 +105,7 @@ import {
   isAgentConnectorAndAgentModel,
   isAgentConnectorAndAgentServiceModel,
   isAgentConnectorAndDeploymentId,
+  isAgentConnectorAndModelId,
 } from './helpers';
 import type { AnyAction, ThunkDispatch } from '@reduxjs/toolkit';
 import { createAsyncThunk } from '@reduxjs/toolkit';
@@ -494,10 +495,13 @@ export const ParameterSection = ({
       }
 
       const isAgentDeployment = isAgentConnectorAndDeploymentId(operationInfo.connectorId ?? '', parameter?.parameterName ?? '');
+      const isAgentModelId = isAgentConnectorAndModelId(operationInfo.connectorId ?? '', parameter?.parameterName ?? '');
 
-      if (isAgentDeployment) {
+      if (isAgentDeployment || isAgentModelId) {
         const deploymentInfo = value?.length
-          ? deploymentsForCognitiveServiceAccount?.find((deployment: any) => deployment.name === value[0]?.value)
+          ? deploymentsForCognitiveServiceAccount?.find((deployment: any) =>
+              isAgentDeployment ? deployment.name === value[0]?.value : deployment.modelId === value[0]?.value
+            )
           : undefined;
 
         updatedDependencies.inputs ??= {};
@@ -1020,7 +1024,8 @@ export const getEditorAndOptions = (
 
   // Handle agent connector with supported deployments
   const isAgent = isAgentConnectorAndDeploymentId(operationInfo?.connectorId, parameter.parameterName);
-  if ((equals(editor, 'combobox') || equals(editor, 'dropdown')) && isAgent) {
+  const isAgentConsumption = isAgentConnectorAndModelId(operationInfo?.connectorId, parameter.parameterName);
+  if ((equals(editor, 'combobox') || equals(editor, 'dropdown')) && (isAgent || isAgentConsumption)) {
     const options = deploymentsForCognitiveServiceAccount
       .filter((deployment) => {
         const modelName = (deployment.properties?.model?.name ?? '').toLowerCase();

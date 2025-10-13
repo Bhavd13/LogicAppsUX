@@ -21,6 +21,10 @@ export const isAgentConnectorAndAgentModel = (id: string, key: string): boolean 
   return AgentUtils.isConnector(id) && AgentUtils.isAgentModelTypeParameter(key);
 };
 
+export const isAgentConnectorAndModelId = (id: string, key: string): boolean => {
+  return AgentUtils.isConnector(id) && AgentUtils.isModelIdParameter(key);
+};
+
 export const isAgentConnectorAndAgentServiceModel = (
   connectorId: string,
   groupId: string,
