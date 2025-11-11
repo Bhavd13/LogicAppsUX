@@ -21,6 +21,7 @@ export interface OverviewProps {
   isAgentWorkflow?: boolean;
   agentUrlLoading?: boolean;
   agentUrlData?: AgentURL;
+  isWorkflowRuntimeRunning?: boolean;
   hasMoreRuns?: boolean;
   loading?: boolean;
   supportsUnitTest?: boolean;
@@ -31,7 +32,7 @@ export interface OverviewProps {
   onOpenRun(run: RunDisplayItem): void;
   onRunTrigger(): void;
   onVerifyRunId(runId: string): Promise<Run | RunError>;
-  onCreateUnitTest?(run: RunDisplayItem): void;
+  onCreateUnitTestFromRun?(run: RunDisplayItem): void;
 }
 
 const filterTextFieldStyles: Pick<ITextFieldStyles, 'root'> = {
@@ -50,6 +51,7 @@ export const Overview: React.FC<OverviewProps> = ({
   isAgentWorkflow,
   agentUrlLoading,
   agentUrlData,
+  isWorkflowRuntimeRunning,
   hasMoreRuns = false,
   supportsUnitTest = false,
   runItems,
@@ -60,7 +62,7 @@ export const Overview: React.FC<OverviewProps> = ({
   onOpenRun,
   onRunTrigger,
   onVerifyRunId,
-  onCreateUnitTest,
+  onCreateUnitTestFromRun,
 }: OverviewProps) => {
   const intl = useIntl();
   const styles = useOverviewStyles();
@@ -134,10 +136,16 @@ export const Overview: React.FC<OverviewProps> = ({
         isAgentWorkflow={isAgentWorkflow}
         agentUrlLoading={agentUrlLoading}
         agentUrlData={agentUrlData}
+        isWorkflowRuntimeRunning={isWorkflowRuntimeRunning}
         onRefresh={onLoadRuns}
         onRunTrigger={onRunTrigger}
       />
-      <OverviewProperties {...workflowProperties} />
+      <OverviewProperties
+        {...workflowProperties}
+        agentUrl={agentUrlData?.agentUrl}
+        agentApiKey={agentUrlData?.queryParams?.apiKey}
+        isWorkflowRuntimeRunning={isWorkflowRuntimeRunning}
+      />
       <Pivot>
         <PivotItem headerText={Resources.RUN_HISTORY}>
           <div className={styles.runHistoryFilter}>
@@ -173,7 +181,7 @@ export const Overview: React.FC<OverviewProps> = ({
               items={runItems}
               loading={loading}
               onOpenRun={onOpenRun}
-              onCreateUnitTest={onCreateUnitTest}
+              onCreateUnitTestFromRun={onCreateUnitTestFromRun}
               supportsUnitTest={supportsUnitTest}
             />
           </InfiniteScroll>

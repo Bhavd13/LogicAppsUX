@@ -9,7 +9,11 @@ import {
   useNodeConnectionId,
 } from '../../../../core/state/connection/connectionSelector';
 import { useIsXrmConnectionReferenceMode } from '../../../../core/state/designerOptions/designerOptionsSelectors';
-import { useConnectionPanelSelectedNodeIds, usePreviousPanelMode } from '../../../../core/state/panel/panelSelectors';
+import {
+  useConnectionPanelSelectedNodeIds,
+  useOperationPanelSelectedNodeId,
+  usePreviousPanelMode,
+} from '../../../../core/state/panel/panelSelectors';
 import { openPanel, setIsCreatingConnection } from '../../../../core/state/panel/panelSlice';
 import { ActionList } from '../actionList/actionList';
 import { ConnectionTable, type ConnectionTableProps } from './connectionTable';
@@ -18,6 +22,7 @@ import {
   ConnectionService,
   equals,
   foundryServiceConnectionRegex,
+  apimanagementRegex,
   getIconUriFromConnector,
   parseErrorMessage,
   type Connection,
@@ -26,7 +31,8 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 import { useDispatch } from 'react-redux';
-import { AgentUtils } from '../../../../common/utilities/Utils';
+import { AgentUtils, isDynamicConnection } from '../../../../common/utilities/Utils';
+import { useIsAgentSubGraph } from '../../../../common/hooks/agent';
 
 export const SelectConnectionWrapper = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -34,6 +40,8 @@ export const SelectConnectionWrapper = () => {
   const intl = useIntl();
   const selectedNodeIds = useConnectionPanelSelectedNodeIds();
   const isA2A = useIsA2AWorkflow();
+  const nodeId: string = useOperationPanelSelectedNodeId();
+  const isAgentSubgraph = useIsAgentSubGraph(nodeId);
   const currentConnectionId = useNodeConnectionId(selectedNodeIds?.[0]); // only need to grab first one, they should all be the same
   const isXrmConnectionReferenceMode = useIsXrmConnectionReferenceMode();
   const referencePanelMode = usePreviousPanelMode();
@@ -56,10 +64,12 @@ export const SelectConnectionWrapper = () => {
     if (AgentUtils.isConnector(connector?.id)) {
       return connectionData.filter((c) => {
         const connectionReference = connectionReferencesForConnector.find((ref) => equals(ref.connection.id, c?.id, true));
-        let isAzureOpenAI = true;
+        let modelType = AgentUtils.ModelType.AzureOpenAI;
         if (connectionReference?.resourceId) {
           if (foundryServiceConnectionRegex.test(connectionReference.resourceId ?? '')) {
-            isAzureOpenAI = false;
+            modelType = AgentUtils.ModelType.FoundryService;
+          } else if (apimanagementRegex.test(connectionReference.resourceId ?? '')) {
+            modelType = AgentUtils.ModelType.APIM;
           }
         }
 
@@ -67,22 +77,22 @@ export const SelectConnectionWrapper = () => {
         c.properties.connectionParameters = {
           ...(c.properties.connectionParameters ?? {}),
           agentModelType: {
-            type: isAzureOpenAI ? AgentUtils.ModelType.AzureOpenAI : AgentUtils.ModelType.FoundryService,
+            type: modelType,
           },
         };
 
         // For A2A, hide the foundry connection from the list
-        return isA2A ? isAzureOpenAI : true;
+        return isA2A ? modelType === AgentUtils.ModelType.AzureOpenAI : true;
       });
     }
 
-    if (!isA2A) {
+    if (!isA2A || !isAgentSubgraph) {
       // Filter out dynamic connections
-      return connectionData.filter((c) => !equals(c.properties.feature ?? '', 'DynamicUserInvoked', true));
+      return connectionData.filter((c) => !isDynamicConnection(c.properties.features));
     }
 
     return connectionData;
-  }, [connectionQuery?.data, connector?.id, isA2A, connectionReferencesForConnector]);
+  }, [connectionQuery?.data, connector?.id, isA2A, connectionReferencesForConnector, isAgentSubgraph]);
   const references = useConnectionRefs();
 
   const saveSelectionCallback = useCallback(

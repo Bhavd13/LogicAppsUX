@@ -1,7 +1,7 @@
 import type { OptionOnSelectData, SelectionEvents } from '@fluentui/react-components';
 import { Button, Dropdown, Field, Option, Popover, PopoverSurface } from '@fluentui/react-components';
 import { MonacoEditor, SimpleDictionary } from '@microsoft/designer-ui';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 import { usePayloadPopoverStyles } from './styles';
 import type { PayloadData } from './index';
@@ -102,6 +102,11 @@ export const PayloadPopover = ({ open, setOpen, buttonRef, onSubmit, isDraftMode
     setOpen(false);
   }, [onSubmit, method, headersValue, queriesValue, bodyValue, setOpen, isDraftMode]);
 
+  const runDisabled = useMemo(
+    () => (isDraftMode ? !bodyValue || bodyValue.trim() === '' || !!jsonError : !method),
+    [isDraftMode, bodyValue, jsonError, method]
+  );
+
   return (
     <Popover
       onOpenChange={(e, data) => setOpen(data.open)}
@@ -113,25 +118,7 @@ export const PayloadPopover = ({ open, setOpen, buttonRef, onSubmit, isDraftMode
     >
       <PopoverSurface>
         <div className={styles.root}>
-          {isDraftMode ? (
-            // Draft mode: Only Monaco editor with JSON
-            <>
-              <Field label={bodyLabel} validationMessage={jsonError} validationState={jsonError ? 'error' : 'none'}>
-                <MonacoEditor
-                  height={'200px'}
-                  language={'json'}
-                  value={bodyValue}
-                  folding={true}
-                  onContentChanged={(e) => onBodyValueChange(e.value)}
-                  lineNumbersMinChars={3}
-                />
-              </Field>
-              <Button appearance={'primary'} onClick={onRunClick} className={styles.runButton} disabled={!!jsonError}>
-                {runButtonText}
-              </Button>
-            </>
-          ) : (
-            // Non-draft mode: Full form with all fields
+          {isDraftMode ? null : (
             <>
               {/* Method */}
               <Field label={methodLabel}>
@@ -151,23 +138,28 @@ export const PayloadPopover = ({ open, setOpen, buttonRef, onSubmit, isDraftMode
               <Field label={queriesLabel}>
                 <SimpleDictionary value={queriesValue} onChange={setQueriesValue} />
               </Field>
-              {/* Body */}
-              <Field label={bodyLabel} className={styles.monacoEditor}>
-                <MonacoEditor
-                  // key={"body-editor"}
-                  height={'200px'}
-                  language={'json'}
-                  value={bodyValue}
-                  folding={true}
-                  onContentChanged={(e) => onBodyValueChange(e.value)}
-                  lineNumbersMinChars={3}
-                />
-              </Field>
-              <Button appearance={'primary'} onClick={onRunClick} className={styles.runButton}>
-                {runButtonText}
-              </Button>
             </>
           )}
+          {/* Body */}
+          <Field
+            label={bodyLabel}
+            className={styles.monacoEditor}
+            validationMessage={jsonError}
+            validationState={jsonError ? 'error' : 'none'}
+          >
+            <MonacoEditor
+              key={'body-editor'}
+              height={'200px'}
+              language={'json'}
+              value={bodyValue}
+              folding={true}
+              onContentChanged={(e) => onBodyValueChange(e.value)}
+              lineNumbersMinChars={3}
+            />
+          </Field>
+          <Button appearance={'primary'} onClick={onRunClick} className={styles.runButton} disabled={runDisabled}>
+            {runButtonText}
+          </Button>
         </div>
       </PopoverSurface>
     </Popover>

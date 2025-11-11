@@ -272,6 +272,7 @@ export default {
   INTEGRATION_ACCOUNT_ARTIFACT_LOOKUP_ARTIFACT_TYPES: ['Schema', 'Map', 'Partner', 'Agreement'],
   ITEM: 'item()',
   LINKS: {
+    APIM_LEARN_MORE: 'https://aka.ms/logicapps-apimdocs',
     CUSTOM_API: 'http://aka.ms/logicapps-customapi',
     FUNCTION: 'http://aka.ms/logicapps-functions',
     FUNCTION_CONTAINER: 'http://aka.ms/logicapps-containers',
@@ -979,7 +980,17 @@ export default {
     INPUT: '-inputchannel-',
     OUTPUT: '-outputchannel-',
   },
-  SUPPORTED_AGENT_MODELS: ['gpt-5-chat', 'gpt-4.1', 'gpt-4', 'gpt-4o', 'gpt-35-turbo', 'gpt-4.1-mini', 'gpt-4.1-nano', 'gpt-4o-mini'],
+  SUPPORTED_AGENT_MODELS: [
+    'gpt-5',
+    'gpt-5-chat',
+    'gpt-4.1',
+    'gpt-4',
+    'gpt-4o',
+    'gpt-35-turbo',
+    'gpt-4.1-mini',
+    'gpt-4.1-nano',
+    'gpt-4o-mini',
+  ],
   HANDOFF_TOOL_NAME_MAX_LENGTH: 64,
   CONNECTION_IDS: {
     ACA_SESSION: '/serviceProviders/acasession',

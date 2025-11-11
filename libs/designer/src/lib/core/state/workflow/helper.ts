@@ -1,3 +1,4 @@
+import type { ConsumptionWorkflowMetadata } from '@microsoft/logic-apps-shared';
 import { equals, SUBGRAPH_TYPES } from '@microsoft/logic-apps-shared';
 import type { WorkflowNode } from '../../../core/parsers/models/workflowNode';
 import { WorkflowKind, type NodeMetadata, type WorkflowState } from './workflowInterfaces';
@@ -132,7 +133,7 @@ export const collapseFlowTree = (
 
 export const isManagedMcpOperation = (operation: { type?: string; kind?: string }) => {
   return equals(operation?.type, Constants.NODE.TYPE.MCP_CLIENT) && equals(operation?.kind, Constants.NODE.KIND.MANAGED);
-}
+};
 
 export const isA2AWorkflow = (state: WorkflowState): boolean => {
   const workflowKind = state.workflowKind;
@@ -164,10 +165,17 @@ export const isA2AWorkflow = (state: WorkflowState): boolean => {
   return false;
 };
 
+export const isA2AKind = (kind?: string, metadata?: ConsumptionWorkflowMetadata): boolean => {
+  return (!!kind && equals(kind, WorkflowKind.AGENT)) || (!!metadata?.agentType && equals(metadata.agentType, 'conversational', false));
+};
+
 export const isAgentWorkflow = (kind: string): boolean => {
-  return equals(kind, WorkflowKind.AGENTIC) || equals(kind, WorkflowKind.AGENT);
+  return equals(kind, WorkflowKind.AGENTIC) || isA2AKind(kind);
 };
 
 export const shouldClearNodeRunData = (node: NodeMetadata) => {
-  return node?.runData && (node.graphId !== 'root' || node.subgraphType === SUBGRAPH_TYPES.AGENT_CONDITION || node.subgraphType === SUBGRAPH_TYPES.MCP_CLIENT);
+  return (
+    node?.runData &&
+    (node.graphId !== 'root' || node.subgraphType === SUBGRAPH_TYPES.AGENT_CONDITION || node.subgraphType === SUBGRAPH_TYPES.MCP_CLIENT)
+  );
 };

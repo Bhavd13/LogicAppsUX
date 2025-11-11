@@ -1,5 +1,5 @@
 import type { PayloadAction } from '@reduxjs/toolkit';
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, isAnyOf } from '@reduxjs/toolkit';
 import { resetWorkflowState, setStateAfterUndoRedo } from '../global';
 import type { UndoRedoPartialRootState } from '../undoRedo/undoRedoTypes';
 import { type DeepPartial, guid } from '@microsoft/logic-apps-shared';
@@ -10,11 +10,13 @@ import type { Note } from '../../../common/models/workflow';
 export interface NotesState {
   notes: Record<string, Note>;
   isDirty: boolean;
+  changeCount: number;
 }
 
 const initialState: NotesState = {
   notes: {},
   isDirty: false,
+  changeCount: 0,
 };
 
 const notesSlice = createSlice({
@@ -62,15 +64,19 @@ const notesSlice = createSlice({
     deleteNote: (state, action: PayloadAction<string>) => {
       delete state.notes[action.payload];
     },
+    resetNoteDirty: (state, action: PayloadAction<boolean>) => {
+      state.isDirty = action.payload;
+    },
   },
   extraReducers: (builder) => {
     builder.addCase(resetWorkflowState, () => initialState);
     builder.addCase(setStateAfterUndoRedo, (_, action: PayloadAction<UndoRedoPartialRootState>) => action.payload.notes);
-    builder.addDefaultCase((state) => {
+    builder.addMatcher(isAnyOf(addNote, updateNote, deleteNote), (state) => {
       state.isDirty = true;
+      state.changeCount += 1;
     });
   },
 });
 
-export const { initializeNotes, addNote, updateNote, deleteNote } = notesSlice.actions;
+export const { initializeNotes, addNote, updateNote, deleteNote, resetNoteDirty } = notesSlice.actions;
 export default notesSlice.reducer;

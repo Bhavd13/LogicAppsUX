@@ -2,6 +2,7 @@
 import { isCustomCodeParameter } from '@microsoft/designer-ui';
 import type { CustomCodeFileNameMapping } from '../../..';
 import Constants from '../../../common/constants';
+import { AgentUtils } from '../../../common/utilities/Utils';
 import type { ConnectionReference, ConnectionReferences, WorkflowParameter } from '../../../common/models/workflow';
 import type { DeserializedWorkflow } from '../../parsers/BJSWorkflow/BJSDeserializer';
 import type { WorkflowNode } from '../../parsers/models/workflowNode';
@@ -28,7 +29,7 @@ import type { NodeTokens, VariableDeclaration } from '../../state/tokens/tokensS
 import { initializeTokensAndVariables } from '../../state/tokens/tokensSlice';
 import type { NodesMetadata, Operations, WorkflowKind } from '../../state/workflow/workflowInterfaces';
 import type { RootState } from '../../store';
-import { getConnectionReference, isConnectionReferenceValid, mockConnectionReference } from '../../utils/connectors/connections';
+import { getConnectionReference, isConnectionReferenceValid, mockEmptyConnectionReference } from '../../utils/connectors/connections';
 import { isTriggerNode } from '../../utils/graph';
 import { getRepetitionContext } from '../../utils/loops';
 import type { RepetitionContext } from '../../utils/parameters/helper';
@@ -52,6 +53,7 @@ import {
   getInputParametersFromManifest,
   getOutputParametersFromManifest,
   getSupportedChannelsFromManifest,
+  initializeAgentModelIds,
   updateCallbackUrlInInputs,
   updateAgentUrlInInputs,
   updateCustomCodeInInputs,
@@ -397,6 +399,14 @@ export const initializeOperationDetailsForManifest = async (
       updateCustomCodeInInputs(customCodeParameter, customCode);
     }
 
+    const agentModelIdParameter = getParameterFromName(nodeInputs, Constants.DEFAULT_CONSUMPTION_AGENT_MODEL_INPUT);
+    if (
+      agentModelIdParameter &&
+      AgentUtils.isConsumptionAgentModelTypeParameter(nodeOperationInfo?.connectorId, agentModelIdParameter.parameterName)
+    ) {
+      await initializeAgentModelIds(agentModelIdParameter);
+    }
+
     const { outputs: nodeOutputs, dependencies: outputDependencies } = getOutputParametersFromManifest(
       nodeId,
       manifest,
@@ -735,7 +745,8 @@ export const initializeDynamicDataInNodes = async (
       const isTrigger = isTriggerNode(nodeId, nodesMetadata);
       const connectionReference = getConnectionReference(connections, nodeId);
       const isFreshCreatedAgent =
-        (Object.keys(connections.connectionReferences).length === 0 || deepCompareObjects(connectionReference, mockConnectionReference)) &&
+        (Object.keys(connections.connectionReferences).length === 0 ||
+          deepCompareObjects(connectionReference, mockEmptyConnectionReference)) &&
         equals(operation.type, Constants.NODE.TYPE.AGENT);
 
       return updateDynamicDataForValidConnection(

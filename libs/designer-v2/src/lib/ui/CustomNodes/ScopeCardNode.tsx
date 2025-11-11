@@ -172,7 +172,7 @@ const ScopeCardNode = ({ id }: NodeProps) => {
       return;
     }
     dispatch(setRepetitionRunData({ nodeId: scopeId, runData: repetitionRunData.properties as LogicAppsV2.WorkflowRunAction }));
-  }, [dispatch, repetitionRunData, scopeId, selfRunData?.correlation?.actionTrackingId]);
+  }, [dispatch, isMonitoringView, isTimelineRepetitionSelected, repetitionRunData, scopeId, selfRunData?.correlation?.actionTrackingId]);
 
   const { dependencies, loopSources } = useTokenDependencies(scopeId);
   const [{ isDragging }, drag, dragPreview] = useDrag(
@@ -452,7 +452,7 @@ const ScopeCardNode = ({ id }: NodeProps) => {
           {collapsedText}
         </p>
       ) : null}
-      {isAgent && actionCount === 0 && !graphCollapsed ? (
+      {isAgent && actionCount < 1 && !graphCollapsed ? (
         <p className="no-actions-text" style={{ margin: shouldShowPager ? 0 : '1em 0' }} data-automation-id={`scope-${id}-no-tools`}>
           {isMonitoringView ? intlText.emptyAgent : intlText.addTool}
         </p>

@@ -1,5 +1,4 @@
 import { isCustomCodeParameter } from '@microsoft/designer-ui';
-import Constants from '../../../common/constants';
 import type { WorkflowNode } from '../../parsers/models/workflowNode';
 import { getConnectionsForConnector, getConnectorWithSwagger } from '../../queries/connections';
 import { getOperationManifest } from '../../queries/operation';
@@ -67,6 +66,8 @@ import { operationSupportsSplitOn } from '../../utils/outputs';
 import { isA2AWorkflow } from '../../state/workflow/helper';
 import { openKindChangeDialog } from '../../state/modal/modalSlice';
 import constants from '../../../common/constants';
+import { addOperationRunAfter, removeOperationRunAfter } from './runafter';
+import { AgentUtils } from '../../../common/utilities/Utils';
 
 type AddOperationPayload = {
   operation: DiscoveryOperation<DiscoveryResultTypes> | undefined;
@@ -88,9 +89,16 @@ export const addOperation = createAsyncThunk('addOperation', async (payload: Add
 
     const workflowState = (getState() as RootState).workflow;
 
-    // If the workflow is A2A, check to see if the node is a trigger that isn't the chat trigger
+    // Catch workflow kind conflicts before adding node
     if (isTrigger) {
       const isA2ATrigger = equals(operation.type, 'Request') && equals(operation.kind, 'Agent');
+      if (equals(workflowState.workflowKind, WorkflowKind.STATELESS) && isA2ATrigger) {
+        // Can't switch to A2A if the workflow is stateless
+        dispatch(openKindChangeDialog({ type: 'fromStateless' }));
+        return;
+      }
+
+      // If the workflow is A2A, check to see if the node is a trigger that isn't the chat trigger
       if (isA2AWorkflow(workflowState)) {
         if (!isA2ATrigger) {
           const workflowHasHandoffs = Object.values(workflowState.nodesMetadata).some(
@@ -101,7 +109,6 @@ export const addOperation = createAsyncThunk('addOperation', async (payload: Add
             dispatch(openKindChangeDialog({ type: 'toStateful' }));
             return;
           }
-          dispatch(setWorkflowKind(WorkflowKind.STATEFUL));
         }
       } else if (isA2ATrigger) {
         const allAgentIds = Object.keys(workflowState.operations).filter((id) =>
@@ -116,7 +123,6 @@ export const addOperation = createAsyncThunk('addOperation', async (payload: Add
           dispatch(openKindChangeDialog({ type: 'toA2A' }));
           return;
         }
-        dispatch(setWorkflowKind(WorkflowKind.AGENT));
       }
     }
 
@@ -155,6 +161,50 @@ export const addOperation = createAsyncThunk('addOperation', async (payload: Add
       actionMetadata,
       !isAddingHandoff
     );
+
+    // Adjust workflow for kind change if needed
+    if (isTrigger) {
+      const isA2ATrigger = equals(operation.type, 'Request') && equals(operation.kind, 'Agent');
+
+      if (isA2AWorkflow(workflowState)) {
+        if (!isA2ATrigger) {
+          dispatch(setWorkflowKind(WorkflowKind.STATEFUL));
+          // If trigger child is agent, agent needs to have its runAfter cleared
+          const edges = workflowState.graph?.edges ?? [];
+          const triggerChildId = edges.find((edge) => edge.source === constants.NODE.TYPE.PLACEHOLDER_TRIGGER)?.target;
+          if (triggerChildId) {
+            const childNodeOperationData = workflowState.operations?.[triggerChildId];
+            const childIsAgent = equals(childNodeOperationData.type, constants.NODE.TYPE.AGENT);
+            const currentRunAfterId = Object.keys((childNodeOperationData as any).runAfter)?.[0];
+            if (childIsAgent && currentRunAfterId) {
+              dispatch(
+                removeOperationRunAfter({
+                  parentOperationId: currentRunAfterId,
+                  childOperationId: triggerChildId,
+                })
+              );
+            }
+          }
+        }
+      } else if (isA2ATrigger) {
+        dispatch(setWorkflowKind(WorkflowKind.AGENT));
+        // If trigger child is agent, agent needs to run after trigger
+        const edges = workflowState.graph?.edges ?? [];
+        const triggerChildId = edges.find((edge) => edge.source === constants.NODE.TYPE.PLACEHOLDER_TRIGGER)?.target;
+        if (triggerChildId) {
+          const childNodeOperationData = workflowState.operations?.[triggerChildId];
+          const childIsAgent = equals(childNodeOperationData.type, constants.NODE.TYPE.AGENT);
+          if (childIsAgent) {
+            dispatch(
+              addOperationRunAfter({
+                parentOperationId: actionId,
+                childOperationId: triggerChildId,
+              })
+            );
+          }
+        }
+      }
+    }
 
     dispatch(setFocusNode(nodeId));
     if (isAddingAgentTool && newToolId) {
@@ -227,7 +277,7 @@ export const initializeOperationDetails = async (
       manifest,
       presetParameterValues
     );
-    const customCodeParameter = getParameterFromName(nodeInputs, Constants.DEFAULT_CUSTOM_CODE_INPUT);
+    const customCodeParameter = getParameterFromName(nodeInputs, constants.DEFAULT_CUSTOM_CODE_INPUT);
     if (customCodeParameter && isCustomCodeParameter(customCodeParameter)) {
       initializeCustomCodeDataInInputs(customCodeParameter, nodeId, dispatch);
     }
@@ -343,7 +393,9 @@ export const initializeOperationDetails = async (
 
   if (isConnectionRequired) {
     try {
-      await trySetDefaultConnectionForNode(nodeId, connector as Connector, dispatch, isConnectionRequired);
+      await trySetDefaultConnectionForNode(nodeId, connector as Connector, dispatch, isConnectionRequired, (c: Connection) =>
+        AgentUtils.filterDynamicConnectionFeatures(c, nodeId, state)
+      );
     } catch (e: any) {
       dispatch(
         updateErrorDetails({
@@ -433,10 +485,13 @@ export const trySetDefaultConnectionForNode = async (
   nodeId: string,
   connector: Connector,
   dispatch: AppDispatch,
-  isConnectionRequired: boolean
+  isConnectionRequired: boolean,
+  connectionFilterFunc?: (connection: Connection) => boolean
 ) => {
   const connectorId = connector.id;
-  const connections = (await getConnectionsForConnector(connectorId)).filter((c) => c.properties.overallStatus !== 'Error');
+  const connections = (await getConnectionsForConnector(connectorId)).filter(
+    (c) => c.properties.overallStatus !== 'Error' && (!connectionFilterFunc || connectionFilterFunc(c))
+  );
   if (connections.length > 0) {
     const connection = (await tryGetMostRecentlyUsedConnectionId(connectorId, connections)) ?? connections[0];
     await ConnectionService().setupConnectionIfNeeded(connection);
@@ -500,7 +555,7 @@ export const addTokensAndVariables = (
     )
   );
 
-  if (equals(operationType, Constants.NODE.TYPE.INITIALIZE_VARIABLE)) {
+  if (equals(operationType, constants.NODE.TYPE.INITIALIZE_VARIABLE)) {
     setVariableMetadata(iconUri, brandColor);
 
     const variables = getVariableDeclarations(nodeInputs);
@@ -516,10 +571,10 @@ const getOperationType = (operation: DiscoveryOperation<DiscoveryResultTypes>): 
   return operationType
     ? operationType
     : (operation.properties as SomeKindOfAzureOperationDiscovery).isWebhook
-      ? Constants.NODE.TYPE.API_CONNECTION_WEBHOOK
+      ? constants.NODE.TYPE.API_CONNECTION_WEBHOOK
       : (operation.properties as SomeKindOfAzureOperationDiscovery).isNotification
-        ? Constants.NODE.TYPE.API_CONNECTION_NOTIFICATION
-        : Constants.NODE.TYPE.API_CONNECTION;
+        ? constants.NODE.TYPE.API_CONNECTION_NOTIFICATION
+        : constants.NODE.TYPE.API_CONNECTION;
 };
 
 export const getTriggerNodeManifest = async (
